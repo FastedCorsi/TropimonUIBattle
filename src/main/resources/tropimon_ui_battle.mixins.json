@@ -1,0 +1,30 @@
+{
+  "required": false,
+  "package": "fr.tropimon.battleui.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ActiveBattlePokemonMixin",
+    "BattleReplacePokemonHandlerMixin",
+    "BattleGuiMixin",
+    "BattleFaintHandlerMixin",
+    "BattleHealthChangeHandlerMixin",
+    "BattleGeneralActionSelectionMixin",
+    "BattleMessagePacketMixin",
+    "BattleMessagePaneMixin",
+    "BattleGuiActionExtensionBeginMixin",
+    "BattleGuiActionExtensionCoordinatesBeginMixin",
+    "BattleGuiActionExtensionCoordinatesEndMixin",
+    "BattleGuiActionExtensionEndMixin",
+    "BattleActionRenderMixin",
+    "BattleMoveTileAlignmentMixin",
+    "BattleMoveTileHitboxMixin",
+    "BattleMoveBackHitboxMixin",
+    "BattleTargetRenderMixin",
+    "BattleSwitchRenderMixin",
+    "BattleStatOverlayMixin",
+    "MouseScrollMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

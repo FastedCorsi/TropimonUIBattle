@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "tropimon_ui_battle",
+  "version": "${version}",
+  "name": "Tropimon UI Battle",
+  "description": "Interface de combat Tropimon greffée sur Cobblemon.",
+  "authors": ["By FastedCorsi"],
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["fr.tropimon.battleui.TropimonUIBattleClient"]
+  },
+  "mixins": ["tropimon_ui_battle.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.17.2",
+    "minecraft": "1.21.1",
+    "fabric-api": ">=0.116.6+1.21.1",
+    "cobblemon": ">=1.7.2",
+    "java": ">=21"
+  }
+}
