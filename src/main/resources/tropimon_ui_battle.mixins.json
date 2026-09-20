@@ -24,7 +24,7 @@
     "BattleTargetRenderMixin",
     "BattleSwitchRenderMixin",
     "BattleStatOverlayMixin",
-    "PartySidebarMixin",
+    "MegaTeamPreviewMixin",
     "MouseScrollMixin"
   ],
   "injectors": {

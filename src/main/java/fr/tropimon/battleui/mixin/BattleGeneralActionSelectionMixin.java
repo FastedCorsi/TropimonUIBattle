@@ -5,25 +5,36 @@ import com.cobblemon.mod.common.battles.PassActionResponse;
 import com.cobblemon.mod.common.client.CobblemonClient;
 import com.cobblemon.mod.common.client.battle.ClientBattle;
 import com.cobblemon.mod.common.client.battle.SingleActionRequest;
+import com.cobblemon.mod.common.client.gui.battle.BattleGUI;
 import com.cobblemon.mod.common.client.gui.battle.subscreen.BattleGeneralActionSelection;
 import fr.tropimon.battleui.WildBattleFlee;
 import kotlin.Unit;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Surrogate;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = BattleGeneralActionSelection.class, remap = false)
 abstract class BattleGeneralActionSelectionMixin {
-    // Cobblemon 1.8 replaced this legacy prompt callback with a native
-    // FleeAttemptActionResponse callback that captures BattleGUI and the request.
-    // Keep the 1.7.2 workaround strictly scoped to the old descriptor so the
-    // modern native flee flow is never intercepted.
-    @Inject(method = "lambda$2$1(Lcom/cobblemon/mod/common/client/gui/battle/subscreen/" +
-            "BattleGeneralActionSelection;)Lkotlin/Unit;", at = @At("HEAD"),
-            cancellable = true, require = 0, remap = false)
+    // The same Run callback captures different arguments in 1.7.2 and 1.8.
+    // A surrogate lets Mixin choose the matching signature without a failed
+    // legacy injection discarding the entire mixin on the modern version.
+    @Inject(method = "lambda$2$1", at = @At("HEAD"),
+            cancellable = true, require = 1, remap = false)
     private static void tropimonBattleUi$runImmediately(BattleGeneralActionSelection selection,
                                                          CallbackInfoReturnable<Unit> cir) {
+        tropimonBattleUi$fleeWildBattle(selection, cir);
+    }
+
+    @Surrogate
+    private static void tropimonBattleUi$runImmediately(BattleGUI gui, SingleActionRequest request,
+            BattleGeneralActionSelection selection, CallbackInfoReturnable<Unit> cir) {
+        tropimonBattleUi$fleeWildBattle(selection, cir);
+    }
+
+    private static void tropimonBattleUi$fleeWildBattle(BattleGeneralActionSelection selection,
+            CallbackInfoReturnable<Unit> cir) {
         ClientBattle battle = CobblemonClient.INSTANCE.getBattle();
         SingleActionRequest request = selection.getRequest();
         if (battle == null || !battle.isPvW() || request.getResponse() != null) return;

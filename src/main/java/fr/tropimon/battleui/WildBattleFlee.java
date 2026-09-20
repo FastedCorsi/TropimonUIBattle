@@ -15,9 +15,9 @@ import java.util.UUID;
 /**
  * Keeps the client-only wild Run shortcut isolated from genuine PvP forfeits.
  *
- * Cobblemon 1.7.2 has no client-to-server flee response. Run therefore uses
- * Cobblemon's own forfeit response, while the two misleading end messages are
- * represented locally as the native Cobblemon flee message.
+ * Run keeps the immediate wild-battle shortcut on both supported Cobblemon APIs
+ * using its own forfeit response. The two resulting end messages are represented
+ * locally as the native Cobblemon flee message.
  */
 public final class WildBattleFlee {
     private static final Duration MESSAGE_WINDOW = Duration.ofSeconds(15);

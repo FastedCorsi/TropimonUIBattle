@@ -99,6 +99,10 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
     testImplementation("net.fabricmc:fabric-loader-junit:${property("fabric_loader_version")}")
+    // Explicit local integration-test inputs; never a production dependency or bundled JAR.
+    providers.gradleProperty("verification_mods_dir").orNull?.let { directory ->
+        modRuntimeOnly(fileTree(file(directory)) { include("*.jar") })
+    }
     // Explicit opt-in verification only; none of these mods is a production dependency.
     if (providers.gradleProperty("coexistence").isPresent) {
         modRuntimeOnly(fileTree(localMods) {
