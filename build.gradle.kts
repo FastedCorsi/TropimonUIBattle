@@ -1,7 +1,3 @@
-import java.nio.file.AtomicMoveNotSupportedException
-import java.nio.file.AccessDeniedException
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.util.zip.ZipFile
 import javax.imageio.ImageIO
 import groovy.json.JsonSlurper
@@ -28,10 +24,16 @@ repositories {
 val defaultTropimonRoot = System.getenv("APPDATA")?.takeIf(String::isNotBlank)
     ?.let { file(it).resolve(".tropimon") }
     ?: file(System.getProperty("user.home")).resolve(".tropimon")
+val managedInstances = defaultTropimonRoot.resolve("profiles").listFiles()
+    ?.filter { it.isDirectory && it.resolve("instance/mods").isDirectory }.orEmpty()
 val localMods = providers.gradleProperty("tropimon_mods_dir")
     .orElse(providers.environmentVariable("TROPIMON_MODS_DIR"))
     .orNull?.let { file(it) }
-    ?: defaultTropimonRoot.resolve("mods")
+    ?: when (managedInstances.size) {
+        0 -> defaultTropimonRoot.resolve("mods")
+        1 -> managedInstances.single().resolve("instance/mods")
+        else -> throw GradleException("Plusieurs profils : précisez -Ptropimon_mods_dir=<mods du profil actif>.")
+    }
 val configuredCobblemonJar = providers.gradleProperty("cobblemon_jar_path")
     .orElse(providers.environmentVariable("COBBLEMON_JAR"))
     .orNull?.let { file(it) }
@@ -67,7 +69,7 @@ val cobblemonJar = if (officialDependenciesOnly) {
     configuredCobblemonJar
 } else {
     val candidates = localMods.listFiles { candidate ->
-        candidate.isFile && candidate.name.startsWith("Cobblemon-fabric-") && candidate.name.endsWith(".jar")
+        candidate.isFile && candidate.name.endsWith(".jar")
     }?.filter(::supportedCobblemonJar).orEmpty()
     when (candidates.size) {
         1 -> candidates.single()
@@ -135,7 +137,7 @@ tasks.test {
     val configuredJava = providers.gradleProperty("tropimon_java_path")
         .orElse(providers.environmentVariable("TROPIMON_JAVA"))
         .orNull?.let { file(it) }
-    val bundledJava = localMods.parentFile.resolve("runtime/x64/jdk-21.0.6+7/bin/java.exe")
+    val bundledJava = defaultTropimonRoot.resolve("runtime/x64/jdk-21.0.6+7/bin/java.exe")
     if (configuredJava?.isFile == true) executable = configuredJava.absolutePath
     else if (bundledJava.isFile) executable = bundledJava.absolutePath
 }
@@ -285,65 +287,9 @@ tasks.processResources {
 }
 
 tasks.register("installTropimonUIBattleLocal") {
-    dependsOn(verifyPrivacyArtifacts)
     group = "distribution"
-    description = "Installe le JAR local par remplacement atomique après vérification complète de l'archive."
-
-    doLast {
-        localMods.mkdirs()
-        val source = tasks.remapJar.get().archiveFile.get().asFile.toPath()
-        val target = localMods.resolve("TropimonUIBattle-${project.version}+1.21.1-LOCAL.jar").toPath()
-        val staged = Files.createTempFile(
-            target.parent,
-            ".TropimonUIBattle-${project.version}-",
-            ".jar.tmp"
-        )
-
-        try {
-            Files.copy(
-                source,
-                staged,
-                StandardCopyOption.REPLACE_EXISTING
-            )
-
-            // Lire chaque entrée force la vérification de la structure et des CRC avant installation.
-            ZipFile(staged.toFile()).use { archive ->
-                val buffer = ByteArray(8192)
-                val entries = archive.entries()
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    if (!entry.isDirectory) {
-                        archive.getInputStream(entry).use { stream ->
-                            while (stream.read(buffer) != -1) {
-                                // Vérification seulement : aucune extraction sur disque.
-                            }
-                        }
-                    }
-                }
-            }
-
-            try {
-                Files.move(
-                    staged,
-                    target,
-                    StandardCopyOption.ATOMIC_MOVE,
-                    StandardCopyOption.REPLACE_EXISTING
-                )
-            } catch (error: AtomicMoveNotSupportedException) {
-                throw GradleException(
-                    "Installation refusée : le système ne permet pas de remplacer le JAR atomiquement.",
-                    error
-                )
-            } catch (error: AccessDeniedException) {
-                throw GradleException(
-                    "Installation refusée : Minecraft utilise encore le JAR. Fermez le jeu puis relancez cette tâche.",
-                    error
-                )
-            }
-        } finally {
-            Files.deleteIfExists(staged)
-        }
-    }
+    description = "Installe dans le profil géré après arrêt du jeu et vérification des deux copies."
+    dependsOn("armReleaseLocal")
 }
 
 
@@ -380,6 +326,8 @@ val prepareReleaseDelivery = tasks.register("prepareReleaseDelivery") {
         copyAndHash(localDirectory.resolve("TropimonUIBattle-${project.version}+1.21.1-LOCAL.jar"))
         file("tools/install-local-deferred.ps1")
             .copyTo(localDirectory.resolve("install-local-deferred.ps1"), overwrite = true)
+        file("tools/InstallManagedLocalMod.ps1")
+            .copyTo(localDirectory.resolve("InstallManagedLocalMod.ps1"), overwrite = true)
     }
 }
 

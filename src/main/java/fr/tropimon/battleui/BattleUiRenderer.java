@@ -23,7 +23,6 @@ import java.util.Locale;
 
 public final class BattleUiRenderer {
     private static final int HEADER_HEIGHT = 28;
-    private static final int LINE_HEIGHT = 10;
     private static final int DARK = 0xFC182026;
     private static final int EDGE = 0xFF40515C;
     private static final int CYAN = 0xFF55D5DE;
@@ -39,6 +38,7 @@ public final class BattleUiRenderer {
     private static Bounds historyBounds = Bounds.EMPTY;
     private static Bounds turnButtonBounds = Bounds.EMPTY;
     private static Bounds themeButtonBounds = Bounds.EMPTY;
+    private static Bounds settingsButtonBounds = Bounds.EMPTY;
     private static Bounds turnMenuBounds = Bounds.EMPTY;
     private static boolean turnMenuOpen;
     private static int turnMenuOffset;
@@ -329,13 +329,14 @@ public final class BattleUiRenderer {
         BattleStatsView battleStats = BattleUiState.ownBattleStats(displayed.uuid());
         var effects = BattleUiState.pokemonEffects(displayed.uuid());
         var key = new TeamTooltipKey(displayed, opponent, BattleUiState.opponentItemKnownAbsent(displayed.uuid()), knowledge,
-                speed, battleStats, effects, net.minecraft.util.Language.getInstance(), UiResourceEpoch.current());
+                speed, battleStats, effects, net.minecraft.util.Language.getInstance(), UiResourceEpoch.current(),
+                BattleUiPreferences.revision());
         List<TooltipRow> rows = TEAM_TOOLTIP.get(key,
                 () -> teamTooltipRows(displayed, opponent, knowledge, speed, battleStats, effects));
         drawBoundedTooltip(context, client, layout(client), rows);
     }
 
-    private static List<TooltipRow> teamTooltipRows(TeamMemberView member, boolean opponent,
+    static List<TooltipRow> teamTooltipRows(TeamMemberView member, boolean opponent,
             OpponentKnowledgeView knowledge, SpeedRangeView speed,
             BattleStatsView battleStats,
             List<PokemonBattleEffects.PokemonEffectView> activeEffects) {
@@ -348,7 +349,7 @@ public final class BattleUiRenderer {
         else if (!member.status().isBlank()) health.append(Text.literal("  ")).append(statusName(member.status())
                 .copy().styled(style -> style.withColor(statusColor(member.status())).withBold(true)));
         rows.add(new TooltipRow(health, false));
-        if (battleStats.known()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.STATS) && battleStats.known()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.battle_stats_physical",
                     battleStats.hp(), battleStats.attack(), battleStats.defense())
                     .formatted(Formatting.AQUA), false));
@@ -358,17 +359,19 @@ public final class BattleUiRenderer {
         }
 
         if (!member.types().isEmpty()) {
-            MutableText types = Text.translatable("text.tropimon_ui_battle.types");
-            for (int index = 0; index < member.types().size(); index++) {
-                TypeView type = member.types().get(index);
-                if (index > 0) types.append(Text.literal(" / ").formatted(Formatting.GRAY));
-                types.append(type.name().copy().styled(style ->
-                        style.withColor(BattleLogTextFormatter.typeColor(type.id())).withBold(true)));
+            if (BattleUiPreferences.show(BattleUiPreferences.Detail.TYPES)) {
+                MutableText types = Text.translatable("text.tropimon_ui_battle.types");
+                for (int index = 0; index < member.types().size(); index++) {
+                    TypeView type = member.types().get(index);
+                    if (index > 0) types.append(Text.literal(" / ").formatted(Formatting.GRAY));
+                    types.append(type.name().copy().styled(style ->
+                            style.withColor(BattleLogTextFormatter.typeColor(type.id())).withBold(true)));
+                }
+                rows.add(new TooltipRow(types, true));
             }
-            rows.add(new TooltipRow(types, true));
 
             List<PokemonTypeMatchups.TypeMatchupView> weaknesses = PokemonTypeMatchups.weaknesses(member.types());
-            if (!weaknesses.isEmpty()) {
+            if (BattleUiPreferences.show(BattleUiPreferences.Detail.WEAKNESSES) && !weaknesses.isEmpty()) {
                 MutableText weaknessLine = Text.translatable("text.tropimon_ui_battle.weaknesses");
                 for (int index = 0; index < weaknesses.size(); index++) {
                     PokemonTypeMatchups.TypeMatchupView weakness = weaknesses.get(index);
@@ -385,41 +388,47 @@ public final class BattleUiRenderer {
         }
 
         ItemStack heldItem = member.heldItem();
-        if (!heldItem.isEmpty()) {
-            rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.held_item",
-                    itemWithHover(heldItem)), true));
-        } else if (BattleUiState.opponentItemKnownAbsent(member.uuid())) {
-            rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.no_held_item")
-                    .formatted(Formatting.GRAY), true));
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.ITEM)) {
+            if (!heldItem.isEmpty()) {
+                rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.held_item",
+                        itemWithHover(heldItem)), true));
+            } else if (BattleUiState.opponentItemKnownAbsent(member.uuid())) {
+                rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.no_held_item")
+                        .formatted(Formatting.GRAY), true));
+            }
         }
-        if (member.ability() != null && !member.ability().name().getString().isBlank()) {
-            MutableText ability = Text.translatable("text.tropimon_ui_battle.ability", member.ability().name())
-                    .styled(style -> style.withColor(0xFFB980E2).withBold(true));
-            if (member.ability().suppressed()) {
-                ability.append(Text.literal("  ")).append(Text.translatable(
-                        "text.tropimon_ui_battle.ability_suppressed").formatted(Formatting.RED));
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.ABILITY)) {
+            if (member.ability() != null && !member.ability().name().getString().isBlank()) {
+                MutableText ability = Text.translatable("text.tropimon_ui_battle.ability", member.ability().name())
+                        .styled(style -> style.withColor(0xFFB980E2).withBold(true));
+                if (member.ability().suppressed()) {
+                    ability.append(Text.literal("  ")).append(Text.translatable(
+                            "text.tropimon_ui_battle.ability_suppressed").formatted(Formatting.RED));
+                }
+                rows.add(new TooltipRow(ability, true));
+                if (BattleUiPreferences.show(BattleUiPreferences.Detail.ABILITY_DESCRIPTION)
+                        && !member.ability().description().getString().isBlank()) {
+                    rows.add(new TooltipRow(member.ability().description().copy().formatted(Formatting.GRAY), false));
+                }
+            } else if (opponent && !knowledge.possibleAbilities().isEmpty()) {
+                MutableText abilities = Text.translatable("text.tropimon_ui_battle.possible_abilities")
+                        .formatted(Formatting.BOLD).append(Text.literal(" "));
+                for (int index = 0; index < knowledge.possibleAbilities().size(); index++) {
+                    AbilityView possible = knowledge.possibleAbilities().get(index);
+                    if (index > 0) abilities.append(Text.literal(" · ").formatted(Formatting.DARK_GRAY));
+                    MutableText name = possible.name().copy();
+                    if (possible.hidden()) name.append(Text.literal(" (")).append(Text.translatable(
+                            "text.tropimon_ui_battle.hidden_ability_short")).append(Text.literal(")"));
+                    MutableText hover = possible.name().copy().formatted(Formatting.BOLD);
+                    if (BattleUiPreferences.show(BattleUiPreferences.Detail.ABILITY_DESCRIPTION))
+                        hover.append(Text.literal("\n")).append(possible.description().copy().formatted(Formatting.GRAY));
+                    abilities.append(name.styled(style -> style.withColor(0xFFB980E2)
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover))));
+                }
+                rows.add(new TooltipRow(abilities, true));
             }
-            rows.add(new TooltipRow(ability, true));
-            if (!member.ability().description().getString().isBlank()) {
-                rows.add(new TooltipRow(member.ability().description().copy().formatted(Formatting.GRAY), false));
-            }
-        } else if (opponent && !knowledge.possibleAbilities().isEmpty()) {
-            MutableText abilities = Text.translatable("text.tropimon_ui_battle.possible_abilities")
-                    .formatted(Formatting.BOLD).append(Text.literal(" "));
-            for (int index = 0; index < knowledge.possibleAbilities().size(); index++) {
-                AbilityView possible = knowledge.possibleAbilities().get(index);
-                if (index > 0) abilities.append(Text.literal(" · ").formatted(Formatting.DARK_GRAY));
-                MutableText name = possible.name().copy();
-                if (possible.hidden()) name.append(Text.literal(" (")).append(Text.translatable(
-                        "text.tropimon_ui_battle.hidden_ability_short")).append(Text.literal(")"));
-                abilities.append(name.styled(style -> style.withColor(0xFFB980E2)
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                possible.name().copy().formatted(Formatting.BOLD).append(Text.literal("\n"))
-                                        .append(possible.description().copy().formatted(Formatting.GRAY))))));
-            }
-            rows.add(new TooltipRow(abilities, true));
         }
-        if (!battleStats.known() && speed.known()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.STATS) && !battleStats.known() && speed.known()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.speed_range",
                     speed.minimum(), speed.maximum()).formatted(Formatting.AQUA), true));
             if (speed.modified()) {
@@ -427,7 +436,7 @@ public final class BattleUiRenderer {
                         speed.effectiveMinimum(), speed.effectiveMaximum()).formatted(Formatting.GRAY), false));
             }
         }
-        if (!knowledge.itemHistory().isEmpty()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.HISTORY) && !knowledge.itemHistory().isEmpty()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.item_history")
                     .formatted(Formatting.BOLD), true));
             int first = 0;
@@ -437,7 +446,7 @@ public final class BattleUiRenderer {
                         event.turn(), itemWithHover(event.item())).formatted(Formatting.GRAY), false));
             }
         }
-        if (opponent && !knowledge.formHistory().isEmpty()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.HISTORY) && opponent && !knowledge.formHistory().isEmpty()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.form_history")
                     .formatted(Formatting.BOLD), true));
             int first = 0;
@@ -449,7 +458,7 @@ public final class BattleUiRenderer {
                 rows.add(new TooltipRow(history.copy().formatted(Formatting.GRAY), false));
             }
         }
-        if (!member.statStages().isEmpty()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.BOOSTS) && !member.statStages().isEmpty()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.stat_changes")
                     .formatted(Formatting.BOLD), true));
             MutableText stages = Text.empty();
@@ -463,7 +472,7 @@ public final class BattleUiRenderer {
             }
             rows.add(new TooltipRow(stages, false));
         }
-        if (!activeEffects.isEmpty()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.EFFECTS) && !activeEffects.isEmpty()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.active_effects")
                     .formatted(Formatting.BOLD), true));
             MutableText effects = Text.empty();
@@ -480,7 +489,7 @@ public final class BattleUiRenderer {
             }
             rows.add(new TooltipRow(effects, false));
         }
-        if (!member.knownMoves().isEmpty()) {
+        if (BattleUiPreferences.show(BattleUiPreferences.Detail.MOVES) && !member.knownMoves().isEmpty()) {
             rows.add(new TooltipRow(Text.translatable("text.tropimon_ui_battle.known_moves")
                     .formatted(Formatting.BOLD), true));
             MutableText moves = Text.empty();
@@ -521,6 +530,16 @@ public final class BattleUiRenderer {
         return minimum == maximum ? Integer.toString(minimum) : minimum + "–" + maximum;
     }
 
+    private static void drawScaledText(DrawContext context, TextRenderer renderer, OrderedText text,
+                                       int x, int y, float scale) {
+        context.getMatrices().push();
+        try {
+            context.getMatrices().translate(x, y, 0);
+            context.getMatrices().scale(scale, scale, 1);
+            context.drawText(renderer, text, 0, 0, 0xFFFFFFFF, false);
+        } finally { context.getMatrices().pop(); }
+    }
+
     private static Text itemWithHover(ItemStack item) {
         if (item == null || item.isEmpty()) return Text.empty();
         return item.getName().copy().styled(style -> style.withBold(true)
@@ -536,7 +555,9 @@ public final class BattleUiRenderer {
         int margin = layout.margin();
         int width = layout.tooltipWidth();
         int padding = layout.tooltipPadding();
-        int wrapWidth = Math.max(20, width - padding * 2);
+        float textScale = BattleUiPreferences.tooltipScale();
+        int lineHeight = BattleUiPreferences.lineHeight(textScale);
+        int wrapWidth = BattleUiPreferences.wrapWidth(Math.max(20, width - padding * 2), textScale);
         var wrapKey = new TooltipWrapKey(List.copyOf(rows), wrapWidth,
                 net.minecraft.util.Language.getInstance(), UiResourceEpoch.current());
         List<TooltipDisplayLine> lines = TOOLTIP_WRAP.get(wrapKey, () -> {
@@ -554,7 +575,7 @@ public final class BattleUiRenderer {
         int contentHeight = padding * 2;
         List<TooltipDisplayLine> visible = new ArrayList<>();
         for (TooltipDisplayLine line : lines) {
-            int addition = LINE_HEIGHT + (line.gapBefore() ? 3 : 0);
+            int addition = lineHeight + (line.gapBefore() ? 3 : 0);
             if (contentHeight + addition > maxHeight - 2) break;
             visible.add(line);
             contentHeight += addition;
@@ -582,8 +603,8 @@ public final class BattleUiRenderer {
             int lineY = y + padding;
             for (TooltipDisplayLine line : visible) {
                 if (line.gapBefore()) lineY += 3;
-                context.drawText(renderer, line.text(), x + padding, lineY, 0xFFFFFFFF, false);
-                lineY += LINE_HEIGHT;
+                drawScaledText(context, renderer, line.text(), x + padding, lineY, textScale);
+                lineY += lineHeight;
             }
         } finally {
             context.getMatrices().pop();
@@ -597,6 +618,7 @@ public final class BattleUiRenderer {
             historyBounds = Bounds.EMPTY;
             turnButtonBounds = Bounds.EMPTY;
             themeButtonBounds = Bounds.EMPTY;
+            settingsButtonBounds = Bounds.EMPTY;
             return;
         }
         context.getMatrices().push();
@@ -617,10 +639,12 @@ public final class BattleUiRenderer {
         int width = HISTORY_WINDOW.width(screenWidth, layout.margin(), layout.historyWidth());
         TextRenderer renderer = client.textRenderer;
         int innerWidth = width - 17;
-        List<DisplayLine> lines = flattenedLog(renderer, innerWidth);
+        float textScale = BattleUiPreferences.chatScale();
+        int lineHeight = BattleUiPreferences.lineHeight(textScale);
+        List<DisplayLine> lines = flattenedLog(renderer, BattleUiPreferences.wrapWidth(innerWidth, textScale));
         int desiredVisibleLines = MathHelper.clamp(lines.size(), 9, 20);
         int minimumHeight = Math.min(123, layout.historyMaxHeight());
-        int defaultHeight = MathHelper.clamp(HEADER_HEIGHT + 11 + desiredVisibleLines * LINE_HEIGHT,
+        int defaultHeight = MathHelper.clamp(HEADER_HEIGHT + 11 + desiredVisibleLines * lineHeight,
                 minimumHeight, layout.historyMaxHeight());
         var window = HISTORY_WINDOW.layout(screenWidth, screenHeight, layout.margin(), layout.historyWidth(), defaultHeight);
         int height = window.height();
@@ -630,7 +654,7 @@ public final class BattleUiRenderer {
         int innerX = x + 7;
         int innerY = y + HEADER_HEIGHT + 4;
         int innerHeight = height - HEADER_HEIGHT - 11;
-        int visible = Math.max(1, innerHeight / LINE_HEIGHT);
+        int visible = Math.max(1, innerHeight / lineHeight);
         HISTORY.update(cachedTurns, lines.size(), visible);
         int maxScroll = HISTORY.maximumStart();
         int start = HISTORY.startLine();
@@ -647,14 +671,15 @@ public final class BattleUiRenderer {
         Text time = Text.literal(renderer.trimToWidth("◷ " + timeValue, Math.max(30, width / 3)));
         int headerRight = x + width - 10;
         int timeX = headerRight - renderer.getWidth(time);
-        int buttonWidth = Math.min(Math.max(42, renderer.getWidth(turn) + 15), width - renderer.getWidth(time) - 22);
+        int buttonWidth = Math.min(Math.max(42, renderer.getWidth(turn) + 15), width - renderer.getWidth(time) - 68);
         int turnX = timeX - 5 - buttonWidth;
         turnButtonBounds = new Bounds(turnX, y + 9, buttonWidth, 14);
         int themeWidth = 20;
         int themeX = Math.max(x + 8, turnX - themeWidth - 4);
         themeButtonBounds = new Bounds(themeX, y + 9, themeWidth, 14);
+        settingsButtonBounds = new Bounds(themeX - 21, y + 9, 18, 14);
         layoutTurnMenu(renderer, layout);
-        int titleWidth = Math.max(0, themeX - (x + 12));
+        int titleWidth = Math.max(0, settingsButtonBounds.x() - (x + 12));
         String fittedTitle = renderer.trimToWidth(title.getString(), titleWidth);
         if (!fittedTitle.isBlank()) {
             context.drawTextWithShadow(renderer, fittedTitle, x + 8, y + 12, 0xFFFFFFFF);
@@ -671,6 +696,9 @@ public final class BattleUiRenderer {
         BattleUiSkin.drawCobblemonButton(context, themeX, themeButtonBounds.y(), themeWidth,
                 themeButtonBounds.height(), themeHovered);
         drawThemeIcon(context, themeX + themeWidth / 2, y + 16, BattleUiTheme.night());
+        boolean settingsHovered = settingsButtonBounds.contains(mouseX, mouseY);
+        BattleUiSkin.drawCobblemonButton(context, settingsButtonBounds.x(), settingsButtonBounds.y(), 18, 14, settingsHovered);
+        context.drawCenteredTextWithShadow(renderer, Text.literal("="), settingsButtonBounds.x() + 9, y + 12, 0xFFFFFFFF);
 
         Style hoveredStyle = null;
         context.enableScissor(innerX, innerY, innerX + innerWidth, innerY + innerHeight);
@@ -679,27 +707,27 @@ public final class BattleUiRenderer {
             DisplayLine line = lines.get(index);
             int textX = innerX;
             if (line.side() != BattleLogSide.NEUTRAL) {
-                context.fill(innerX - 2, lineY - 1, innerX + innerWidth, lineY + 9,
+                context.fill(innerX - 2, lineY - 1, innerX + innerWidth, lineY + lineHeight - 1,
                         BattleUiTheme.sideRow(line.side()));
                 if (line.impact() != BattleLogImpact.NONE) {
-                    context.fill(innerX - 2, lineY - 1, innerX, lineY + 9, line.side().accent());
+                    context.fill(innerX - 2, lineY - 1, innerX, lineY + lineHeight - 1, line.side().accent());
                     textX += 3;
                 }
             } else if (line.type() == BattleLogEntryType.TURN) {
-                context.fill(innerX - 2, lineY - 1, innerX + innerWidth, lineY + 9, BattleUiTheme.neutralRow());
+                context.fill(innerX - 2, lineY - 1, innerX + innerWidth, lineY + lineHeight - 1, BattleUiTheme.neutralRow());
             } else if (line.type() == BattleLogEntryType.HEADER) {
-                context.fill(innerX - 2, lineY - 1, innerX + innerWidth, lineY + 9, BattleUiTheme.neutralRow());
+                context.fill(innerX - 2, lineY - 1, innerX + innerWidth, lineY + lineHeight - 1, BattleUiTheme.neutralRow());
             }
-            context.drawText(renderer, line.text(), textX, lineY, 0xFFFFFFFF, false);
-            if (mouseY >= lineY && mouseY < Math.min(innerY + innerHeight, lineY + LINE_HEIGHT) &&
+            drawScaledText(context, renderer, line.text(), textX, lineY, textScale);
+            if (mouseY >= lineY && mouseY < Math.min(innerY + innerHeight, lineY + lineHeight) &&
                     mouseX >= textX && mouseX < innerX + innerWidth) {
-                int relativeX = mouseX - textX;
+                int relativeX = BattleUiPreferences.textCoordinate(mouseX - textX, textScale);
                 if (relativeX <= renderer.getWidth(line.text())) {
                     Style style = renderer.getTextHandler().getStyleAt(line.text(), relativeX);
                     if (style != null && style.getHoverEvent() != null) hoveredStyle = style;
                 }
             }
-            lineY += LINE_HEIGHT;
+            lineY += lineHeight;
         }
         context.disableScissor();
 
@@ -741,6 +769,8 @@ public final class BattleUiRenderer {
         } else if (hoveredFieldEffect != null && !historyBounds.contains(mouseX, mouseY)) {
             drawBoundedTooltip(context, client, layout, hoveredFieldEffect.tooltipLines().stream()
                     .map(text -> new TooltipRow(text, false)).toList());
+        } else if (settingsHovered) {
+            context.drawTooltip(renderer, Text.translatable("text.tropimon_ui_battle.settings.title"), mouseX, mouseY);
         } else if (turnHovered) {
             drawBoundedTooltip(context, client, layout,
                     List.of(new TooltipRow(Text.translatable("text.tropimon_ui_battle.history.choose_turn"), false)));
@@ -863,6 +893,12 @@ public final class BattleUiRenderer {
             if (button == 0) finishHistoryInteraction();
             return true;
         }
+        if (button == 0 && settingsButtonBounds.contains(mouseX, mouseY)) {
+            closeTurnMenu();
+            var client = MinecraftClient.getInstance();
+            client.setScreen(new BattleUiSettingsScreen(client.currentScreen));
+            return true;
+        }
         if (button == 0 && themeButtonBounds.contains(mouseX, mouseY)) {
             MinecraftClient.getInstance().getSoundManager().play(net.minecraft.client.sound.PositionedSoundInstance
                     .master(net.minecraft.sound.SoundEvents.UI_BUTTON_CLICK, 1.0F));
@@ -968,6 +1004,7 @@ public final class BattleUiRenderer {
         historyBounds = Bounds.EMPTY;
         turnButtonBounds = Bounds.EMPTY;
         themeButtonBounds = Bounds.EMPTY;
+        settingsButtonBounds = Bounds.EMPTY;
         turnMenuBounds = Bounds.EMPTY;
         cachedLogRevision = -1;
         cachedLogLines = List.of();
@@ -995,7 +1032,7 @@ public final class BattleUiRenderer {
             if (entry.showTimestamp()) {
                 String stamp = formatDuration(BattleUiState.elapsedAt(entry.timestamp())) + "  ";
                 rendered.append(Text.literal(stamp).styled(style -> style.withColor(
-                        BattleUiTheme.night() ? 0xFF91AAB7 : BattleLogTextFormatter.MUTED_COLOR)));
+                        BattleUiTheme.darkHistory() ? 0xFF91AAB7 : BattleLogTextFormatter.MUTED_COLOR)));
             }
             Text message = BattleUiTheme.historyText(entry.message());
             if (entry.type() == BattleLogEntryType.TURN) {
@@ -1004,7 +1041,7 @@ public final class BattleUiRenderer {
                         .append(forceColor(message, body, true))
                         .append(Text.literal(" ━━").styled(style -> style.withColor(body)));
             } else if (entry.type() == BattleLogEntryType.HEADER) {
-                rendered.append(message.copy().styled(style -> style.withColor(BattleUiTheme.night() ? 0xFFE6F2F6 : 0xFF15242B).withBold(true)));
+                rendered.append(message.copy().styled(style -> style.withColor(BattleUiTheme.darkHistory() ? 0xFFE6F2F6 : 0xFF15242B).withBold(true)));
             } else {
                 rendered.append(message.copy());
             }
@@ -1027,7 +1064,7 @@ public final class BattleUiRenderer {
     private static List<DisplayLine> flattenedLog(TextRenderer renderer, int width) {
         long revision = BattleUiState.logRevision();
         var key = new LogLayoutKey(width, net.minecraft.util.Language.getInstance(), renderer,
-                UiResourceEpoch.current(), BattleUiTheme.night());
+                UiResourceEpoch.current(), BattleUiTheme.night(), BattleUiPreferences.revision());
         if (cachedLogRevision != revision || !LOG_LAYOUT.layoutMatches(key)) {
             var delta = BattleUiState.logChanges(LOG_LAYOUT.epoch(), LOG_LAYOUT.entryCount(), !LOG_LAYOUT.layoutMatches(key));
             LOG_LAYOUT.update(delta.epoch(), key, delta.from(), delta.entries(),
@@ -1040,12 +1077,12 @@ public final class BattleUiRenderer {
     }
 
     private record LogLayoutKey(int width, net.minecraft.util.Language language, TextRenderer renderer,
-                                long resources, boolean night) { }
+                                long resources, boolean night, long preferences) { }
     private record TeamTooltipKey(TeamMemberView member, boolean opponent, boolean noItem,
                                   OpponentKnowledgeView knowledge, SpeedRangeView speed,
                                   BattleStatsView battleStats,
                                   List<PokemonBattleEffects.PokemonEffectView> effects,
-                                  net.minecraft.util.Language language, long resources) { }
+                                  net.minecraft.util.Language language, long resources, long preferences) { }
     private record TooltipWrapKey(List<TooltipRow> rows, int width, net.minecraft.util.Language language, long resources) { }
 
     static String formatDuration(Duration duration) {
@@ -1106,7 +1143,7 @@ public final class BattleUiRenderer {
         return (int) (client.mouse.getY() * client.getWindow().getScaledHeight() / client.getWindow().getHeight());
     }
 
-    private record TooltipRow(Text text, boolean gapBefore) {
+    record TooltipRow(Text text, boolean gapBefore) {
     }
 
     private record TooltipDisplayLine(OrderedText text, boolean gapBefore) {

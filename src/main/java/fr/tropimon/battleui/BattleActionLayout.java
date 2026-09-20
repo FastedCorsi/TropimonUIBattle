@@ -5,7 +5,7 @@ import java.nio.file.*;
 import java.util.Properties;
 
 /** A shared, resolution-independent anchor for the native action and move menus. */
-final class BattleActionLayout {
+public final class BattleActionLayout {
     // Includes Cobblemon's two native columns and the optional third action tile (for example Calc).
     static final int WIDTH = 284, HEIGHT = 102;
     static final int NATIVE_ACTION_WIDTH = 192, MOVE_WIDTH = 208;
@@ -60,6 +60,19 @@ final class BattleActionLayout {
 
     static int moveBackExtraX() { return MOVE_BACK_OFFSET_X - NATIVE_MOVE_BACK_OFFSET_X; }
     static int moveBackExtraY() { return MOVE_BACK_OFFSET_Y - NATIVE_MOVE_BACK_OFFSET_Y; }
+
+    // Dedicated header strip: gimmicks on the left, Shift, Back, then drag handle.
+    // Compress only the optional gimmick row if a server offers many at once.
+    public record Control(float x, float y, float scale) {
+        public double nativeX(double pointer, float original) { return original + (pointer - x) / scale; }
+        public double nativeY(double pointer, float original) { return original + (pointer - y) / scale; }
+    }
+    static Control gimmick(int index, int count, int screenHeight) {
+        float stride = Math.min(22.0F, 116.0F / Math.max(1, count));
+        float scale = Math.min(1.0F, (stride - 2.0F) / 18.0F);
+        return new Control(9 + index * stride, screenHeight - 104, scale);
+    }
+    static Control shift(int screenHeight) { return new Control(9 + 120, screenHeight - 104, 1); }
 
     Placement layout(int width, int height) {
         return layout(width, height, WIDTH, HEIGHT);

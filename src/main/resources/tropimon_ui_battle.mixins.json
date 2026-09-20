@@ -19,6 +19,8 @@
     "BattleMoveTileAlignmentMixin",
     "BattleMoveTileHitboxMixin",
     "BattleMoveBackHitboxMixin",
+    "BattleGimmickPositionMixin",
+    "BattleShiftPositionMixin",
     "BattleTargetRenderMixin",
     "BattleSwitchRenderMixin",
     "BattleStatOverlayMixin",

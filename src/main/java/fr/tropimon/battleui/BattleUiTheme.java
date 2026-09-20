@@ -19,19 +19,32 @@ public final class BattleUiTheme {
         save();
     }
 
-    static int historyBackground() { return night ? 0xF8071424 : 0xFFEDF0F1; }
+    static boolean darkHistory() { return night || BattleUiPreferences.palette() != BattleUiPreferences.Palette.DEFAULT; }
+    static int historyBackground() {
+        var palette = BattleUiPreferences.palette();
+        return palette == BattleUiPreferences.Palette.DEFAULT ? (night ? 0xF8071424 : 0xFFEDF0F1)
+                : 0xFF000000 | palette.background;
+    }
     static int historyHeader() { return night ? 0xFF06101D : 0xFC182026; }
-    static int neutralRow() { return night ? 0xFF0D2235 : 0xFFE0E5E7; }
+    static int neutralRow() {
+        if (BattleUiPreferences.palette() != BattleUiPreferences.Palette.DEFAULT) return 0x28101010;
+        return night ? 0xFF0D2235 : 0xFFE0E5E7;
+    }
     static int scrollTrack() { return night ? 0xCC10263A : 0x8840515C; }
     static int darkPanelFill() { return night ? 0xF4061424 : 0xF2182026; }
     static int sideRow(BattleLogSide side) {
+        if (!BattleUiPreferences.rowBackgrounds()) return 0;
+        var palette = BattleUiPreferences.palette();
+        if (palette != BattleUiPreferences.Palette.DEFAULT)
+            return side == BattleLogSide.NEUTRAL ? 0 : 0x18000000 |
+                    (side == BattleLogSide.PLAYER ? palette.player : palette.opponent);
         if (!night) return side.background();
         return side == BattleLogSide.PLAYER ? 0xD0123442
                 : side == BattleLogSide.OPPONENT ? 0xD03A1722 : 0;
     }
 
     static net.minecraft.text.Text historyText(net.minecraft.text.Text text) {
-        return night ? recolor(text) : text;
+        return darkHistory() ? recolor(text) : text;
     }
 
     private static net.minecraft.text.MutableText recolor(net.minecraft.text.Text source) {
@@ -44,8 +57,10 @@ public final class BattleUiTheme {
         var color = style.getColor();
         if (color == null) return style;
         int replacement = switch (color.getRgb() & 0xFFFFFF) {
-            case 0x17616B -> 0x55D5DE;
-            case 0x973838 -> 0xFF7580;
+            case 0x17616B -> BattleUiPreferences.palette() == BattleUiPreferences.Palette.DEFAULT
+                    ? 0x55D5DE : BattleUiPreferences.palette().player;
+            case 0x973838 -> BattleUiPreferences.palette() == BattleUiPreferences.Palette.DEFAULT
+                    ? 0xFF7580 : BattleUiPreferences.palette().opponent;
             case 0x29353B, 0x15242B -> 0xE6F2F6;
             case 0x58666D -> 0x91AAB7;
             default -> color.getRgb();

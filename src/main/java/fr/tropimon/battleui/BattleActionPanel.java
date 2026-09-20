@@ -86,6 +86,19 @@ public final class BattleActionPanel {
     public static int moveBackExtraX() { return BattleActionLayout.moveBackExtraX(); }
     public static int moveBackExtraY() { return BattleActionLayout.moveBackExtraY(); }
 
+    public static BattleActionLayout.Control gimmickPlacement(Object button) {
+        if (!moveMenuActive() || !(currentSelection() instanceof BattleMoveSelection moves)) return null;
+        int index = moves.getGimmickButtons().indexOf(button);
+        if (index < 0) return null;
+        return BattleActionLayout.gimmick(index, moves.getGimmickButtons().size(),
+                MinecraftClient.getInstance().getWindow().getScaledHeight());
+    }
+
+    public static float shiftX() { return BattleActionLayout.shift(0).x(); }
+    public static float shiftY() {
+        return BattleActionLayout.shift(MinecraftClient.getInstance().getWindow().getScaledHeight()).y();
+    }
+
     public static void redrawNightGeneralActions(DrawContext context, Object selection, int mouseX, int mouseY) {
         if (!BattleUiTheme.night() || !(selection instanceof BattleGeneralActionSelection general)) return;
         float opacity = (float) CobblemonClient.INSTANCE.getBattleOverlay().getOpacityRatio();

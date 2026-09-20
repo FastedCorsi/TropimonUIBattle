@@ -27,6 +27,8 @@ public final class TropimonUIBattleClient implements ClientModInitializer {
                 .resolve(MOD_ID).resolve("team-row-position.properties"));
         BattleUiTheme.load(FabricLoader.getInstance().getConfigDir()
                 .resolve(MOD_ID).resolve("theme.properties"));
+        BattleUiPreferences.load(FabricLoader.getInstance().getConfigDir()
+                .resolve(MOD_ID).resolve("display.properties"));
         net.fabricmc.fabric.api.resource.ResourceManagerHelper.get(net.minecraft.resource.ResourceType.CLIENT_RESOURCES)
                 .registerReloadListener(new net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener() {
                     @Override public net.minecraft.util.Identifier getFabricId() {
