@@ -30,7 +30,7 @@ class BattleUiLayoutTest {
 
     @Test
     void rowsAndTheirHandlesRemainInsideAndDisjointForEveryRosterSize() {
-        for (int[] size : new int[][]{{320, 180}, {341, 171}, {683, 384}, {960, 540}, {1920, 1080}}) {
+        for (int[] size : new int[][]{{320, 240}, {427, 240}, {480, 270}, {640, 360}, {320, 180}, {341, 171}, {683, 384}, {960, 540}, {1920, 1080}}) {
             for (int ownSlots = 1; ownSlots <= 6; ownSlots++) {
                 for (int opponentSlots = 1; opponentSlots <= 6; opponentSlots++) {
                     BattleUiLayout ui = BattleUiLayout.calculate(size[0], size[1], ownSlots, opponentSlots);
@@ -109,7 +109,7 @@ class BattleUiLayoutTest {
 
     @Test
     void sideRowsAreMirroredUnderTheActiveCardsAndNeverCrossTheGlobalEffects() {
-        for (int[] size : new int[][]{{320, 180}, {341, 171}, {683, 384}, {960, 540}, {1920, 1080}}) {
+        for (int[] size : new int[][]{{320, 240}, {427, 240}, {480, 270}, {640, 360}, {320, 180}, {341, 171}, {683, 384}, {960, 540}, {1920, 1080}}) {
             BattleUiLayout layout = BattleUiLayout.calculate(size[0], size[1], 6, 6);
             var metrics = BattleEffectPresentation.metrics(size[0], size[1]);
             for (int activeSlots : new int[]{1, 2}) {

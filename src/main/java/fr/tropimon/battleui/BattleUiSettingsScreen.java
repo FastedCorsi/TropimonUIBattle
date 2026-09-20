@@ -75,6 +75,7 @@ final class BattleUiSettingsScreen extends Screen {
             }
         }
     }
+    @Override public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) { }
     @Override public boolean shouldPause() { return false; }
     @Override public void close() { client.setScreen(BattleUiState.active() ? parent : null); }
 }
