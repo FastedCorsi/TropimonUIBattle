@@ -1,5 +1,6 @@
 # Local-only data is preserved on disk, never staged for publication.
 /build/
+/.mixin.out/
 /.gradle/
 /.fabric/
 /.idea/

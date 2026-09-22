@@ -133,6 +133,10 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    // Exercise the callback bytecode after real Fabric/Mixin transformation.
+    systemProperty("mixin.debug.export", "true")
+    systemProperty("mixin.debug.export.filter",
+        "com.cobblemon.mod.common.client.gui.battle.subscreen.BattleGeneralActionSelection")
     systemProperty("battleui.test.coexistence", providers.gradleProperty("coexistence").isPresent)
     val reportSuite = if (providers.gradleProperty("coexistence").isPresent) "coexistence" else "isolated"
     reports.junitXml.outputLocation.set(layout.buildDirectory.dir("test-results/$reportSuite"))
