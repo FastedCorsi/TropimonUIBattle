@@ -11,15 +11,18 @@ import java.nio.file.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.*;
 import net.fabricmc.loader.api.*;
 import net.fabricmc.loader.api.metadata.version.VersionPredicate;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
+import com.cobblemon.mod.common.client.CobblemonClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.*;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -61,22 +64,52 @@ final class TropimonSelfUpdater {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, access) -> dispatcher.register(
                 literal("tropimonupdates").then(literal(MOD_ID).executes(context -> {
                     MinecraftClient client = context.getSource().getClient();
-                    client.execute(() -> client.setScreen(new UpdateScreen(client.currentScreen, pending)));
+                    // ChatScreen closes itself after dispatching the command. Queue the
+                    // screen change so it is not opened and immediately closed on Enter.
+                    client.send(() -> client.setScreen(new UpdateScreen(client.currentScreen, pending)));
                     return 1;
                 }))));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (screen instanceof TitleScreen || screen instanceof GameMenuScreen) client.execute(() -> {
+            if (screen instanceof GameMenuScreen) client.execute(() -> {
                 // Multiple independent mods take turns; never replace another mod's consent screen.
                 if (client.currentScreen != screen) return;
-                if (pending != null || (!asked && !shown)) {
+                if (canShowPrompt(screen, client.player != null && client.world != null,
+                        client.getOverlay() != null, CobblemonClient.INSTANCE.getBattle() != null)
+                        && automaticPromptNeeded(asked, shown, pending != null)) {
                     shown = true;
                     client.setScreen(new UpdateScreen(screen, pending));
                 }
             });
         });
-        ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             if (checksAllowed && !recentlyChecked()) check();
+            promptAfterJoin(client, handler, 30);
         });
+    }
+
+    static boolean automaticPromptNeeded(boolean asked, boolean shown, boolean hasOffer) {
+        return hasOffer || (!asked && !shown);
+    }
+
+    static boolean canShowPrompt(Screen screen, boolean worldReady, boolean overlay, boolean battle) {
+        return worldReady && !overlay && !battle && (screen == null || screen instanceof GameMenuScreen);
+    }
+
+    private static void promptAfterJoin(MinecraftClient client, ClientPlayNetworkHandler connection, int retries) {
+        // Join fires before the loading screen necessarily closes. Wait briefly without
+        // polling each tick/frame, and never carry a prompt across a disconnect/reconnect.
+        CompletableFuture.delayedExecutor(2, TimeUnit.SECONDS).execute(() -> client.execute(() -> {
+            if (client.getNetworkHandler() != connection || connection == null
+                    || client.currentScreen instanceof UpdateScreen) return;
+            if (!automaticPromptNeeded(asked, shown, pending != null)) return;
+            if (canShowPrompt(client.currentScreen, client.player != null && client.world != null,
+                    client.getOverlay() != null, CobblemonClient.INSTANCE.getBattle() != null)) {
+                shown = true;
+                client.setScreen(new UpdateScreen(client.currentScreen, pending));
+            } else if (retries > 0) {
+                promptAfterJoin(client, connection, retries - 1);
+            }
+        }));
     }
 
     static boolean checksConsented(JsonObject json) {
@@ -124,8 +157,8 @@ final class TropimonSelfUpdater {
                     pending = offer;
                     MinecraftClient.getInstance().execute(() -> {
                         MinecraftClient c = MinecraftClient.getInstance();
-                        if (pending == offer && (c.currentScreen instanceof TitleScreen || c.currentScreen instanceof GameMenuScreen))
-                            c.setScreen(new UpdateScreen(c.currentScreen, offer));
+                        if (pending == offer && c.getNetworkHandler() != null)
+                            promptAfterJoin(c, c.getNetworkHandler(), 30);
                     });
                 }
             } catch (Exception failure) { failed(failure); }
@@ -298,8 +331,8 @@ final class TropimonSelfUpdater {
             super.render(context, mouseX, mouseY, delta);
             context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 12, 0xFFFFFF);
             String body = offer == null
-                    ? tr("Autoriser ce mod à consulter GitHub au démarrage (au maximum toutes les 6 heures) ? GitHub reçoit la connexion réseau. Aucun fichier ne sera téléchargé sans un nouvel accord pour la version proposée. Refuser ne change aucune fonctionnalité du mod.",
-                         "Allow this mod to check GitHub at startup (at most every 6 hours)? GitHub receives the network connection. No file will download without separate consent for the offered version. Declining does not affect the mod's features.")
+                    ? tr("Autoriser ce mod à consulter GitHub après connexion au serveur (au maximum toutes les 6 heures) ? GitHub reçoit la connexion réseau. Aucun fichier ne sera téléchargé sans un nouvel accord pour la version proposée. Refuser ne change aucune fonctionnalité du mod.",
+                         "Allow this mod to check GitHub after joining a server (at most every 6 hours)? GitHub receives the network connection. No file will download without separate consent for the offered version. Declining does not affect the mod's features.")
                     : tr("Version proposée : ", "Offered version: ") + offer.version + "\n" + offer.jar.name()
                         + "\n" + tr("Source : GitHub / FastedCorsi / ", "Source: GitHub / FastedCorsi / ") + REPOSITORY
                         + "\n" + tr("Ce bouton télécharge le JAR et son SHA-256. Après vérification, un petit installateur Java local attend la fermeture de Minecraft, sauvegarde l'ancien JAR puis le remplace. Le launcher reste inchangé. La version sera active au prochain lancement.",
